@@ -5,7 +5,7 @@ from streamlit_folium import st_folium
 from running_route_recommender import (
     search_running_routes,
     estimate_run_time,
-    #get_coordinates,
+    get_coordinates,
     get_weather_open_meteo
 )
 
