@@ -1,12 +1,15 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+import pandas as pd
 
 from running_route_recommender import (
     search_running_routes,
     estimate_run_time,
     get_coordinates,
     get_weather_open_meteo,
+    get_running_route_geometry,
+    get_gemini_tips,
     TAVILY_API_KEY,
 )
 
@@ -18,6 +21,8 @@ for key, default in {
     "coords": None,
     "weather": "",
     "favorites": [],
+    "route_geometry": None,
+    "chat_history": [],
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -56,7 +61,13 @@ def main() -> None:
         # ② Fetch and cache coordinates
         st.session_state.coords = get_coordinates(location)
 
-        # ③ Optionally fetch weather
+        # ③ Fetch route geometry
+        if st.session_state.coords and st.session_state.coords != (None, None):
+            st.session_state.route_geometry = get_running_route_geometry(st.session_state.coords, distance_km)
+        else:
+            st.session_state.route_geometry = None
+
+        # ④ Optionally fetch weather
         if show_weather and st.session_state.coords and st.session_state.coords != (None, None):
             lat, lon = st.session_state.coords
             st.session_state.weather = get_weather_open_meteo(lat, lon)
@@ -76,6 +87,16 @@ def main() -> None:
     else:
         st.info("No routes yet – click **Find Running Routes**")
 
+    # Export routes as CSV
+    if st.session_state.routes:
+        csv = "\n".join([f"{i+1},{r}" for i, r in enumerate(st.session_state.routes)])
+        st.download_button(
+            label="Export Routes as CSV",
+            data=f"Route,Details\n{csv}",
+            file_name=f"routes_{location}.csv",
+            mime="text/csv"
+        )
+
     # Display favorite routes
     if st.session_state.favorites:
         st.subheader("⭐ Favorite Routes")
@@ -86,11 +107,20 @@ def main() -> None:
     run_time = estimate_run_time(distance_km, pace)
     st.info(f"⏱️ Estimated run time for {distance_km} km: {run_time}")
 
+    # — Pace vs. Time Chart —
+    st.subheader("⏱️ Pace vs. Time")
+    paces = [4.0, 5.0, 6.0, 7.0, 8.0]  # min/km
+    times = [estimate_run_time(distance_km, p).split(" ")[0] for p in paces]  # Extract minutes
+    chart_data = pd.DataFrame({"Pace (min/km)": [f"{p}" for p in paces], "Run Time (minutes)": [int(t) for t in times]})
+    st.bar_chart(chart_data.set_index("Pace (min/km)"))
+
     # — Map —
     if st.session_state.coords and st.session_state.coords != (None, None):
         lat, lon = st.session_state.coords
         m = folium.Map(location=[lat, lon], zoom_start=13)
         folium.Marker([lat, lon], tooltip="Start Location").add_to(m)
+        if st.session_state.route_geometry:
+            folium.PolyLine(st.session_state.route_geometry, color="blue", weight=5, tooltip="Running Route").add_to(m)
         st.subheader("🗺️ Route Area Map")
         st_folium(m, width=700)
     else:
@@ -100,6 +130,29 @@ def main() -> None:
     if show_weather and st.session_state.weather:
         st.subheader("☁️ Weather Info")
         st.text(st.session_state.weather)
+
+    # — Chatbot for Tips —
+    st.subheader("💬 Chat with Gemini for Running Tips")
+    st.write("Ask for tips on running, goal chasing, or nutrition (e.g., 'How can I improve my running form?' or 'What should I eat before a run?').")
+    chat_container = st.container()
+    with chat_container:
+        for message in st.session_state.chat_history:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+    if prompt := st.chat_input("Type your question here..."):
+        # Display user message
+        with chat_container:
+            with st.chat_message("user"):
+                st.markdown(prompt)
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+
+        # Fetch and display Gemini response
+        response = get_gemini_tips(prompt)
+        with chat_container:
+            with st.chat_message("assistant"):
+                st.markdown(response)
+        st.session_state.chat_history.append({"role": "assistant", "content": response})
 
 if __name__ == "__main__":
     main()
