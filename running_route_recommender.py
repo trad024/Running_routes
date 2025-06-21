@@ -2,6 +2,9 @@ import os
 import requests
 import streamlit as st
 import google.generativeai as genai
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ---- 🔑 API key loader -----------------------------------------------
 try:
@@ -85,7 +88,6 @@ def get_running_route_geometry(start_coords: tuple, distance_km: float):
         data = response.json()
         if "features" in data and data["features"]:
             coords = data["features"][0]["geometry"]["coordinates"]
-            # Convert [lon, lat] to [lat, lon] for Folium
             return [[c[1], c[0]] for c in coords]
         return None
     except requests.RequestException as e:
@@ -104,20 +106,38 @@ def get_coordinates(location):
     """Get coordinates for a location using OpenStreetMap Nominatim."""
     url = f"https://nominatim.openstreetmap.org/search?format=json&q={location}"
     headers = {
-        "User-Agent": "RunningRouteApp/1.0 (your.actual.email@example.com)"  # Replace with your email
+        "User-Agent": "RunningRouteApp/1.0 (moataz.bentrad@etudiant-fst.utm.tn)"  
     }
+    # Set up retry strategy
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = session.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
         if data:
             return float(data[0]['lat']), float(data[0]['lon'])
         else:
-            st.error(f"No coordinates found for '{location}'")
+            st.error(f"No coordinates found for '{location}'. Try a more specific location (e.g., 'Paris, France').")
             return None, None
-    except requests.RequestException as e:
-        st.error(f"Failed to fetch coordinates for '{location}': {str(e)}")
+    except requests.exceptions.HTTPError as e:
+        if response.status_code == 403:
+            st.error(
+                f"Access denied by Nominatim (HTTP 403) for '{location}'. "
+                "Ensure the User-Agent in running_route_recommender.py includes a valid email (e.g., 'yourname@example.com')."
+            )
+        elif response.status_code == 429:
+            st.error("Nominatim rate limit exceeded. Please wait a moment and try again.")
+        else:
+            st.error(f"Failed to fetch coordinates for '{location}': HTTP {response.status_code} - {str(e)}")
         return None, None
+    except requests.RequestException as e:
+        st.error(f"Network error fetching coordinates for '{location}': {str(e)}")
+        return None, None
+    finally:
+        session.close()
 
 @st.cache_data
 def get_weather_open_meteo(lat, lon):

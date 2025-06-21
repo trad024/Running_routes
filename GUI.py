@@ -1,7 +1,7 @@
 import streamlit as st
+import re
 import folium
 from streamlit_folium import st_folium
-import pandas as pd
 
 from running_route_recommender import (
     search_running_routes,
@@ -13,10 +13,8 @@ from running_route_recommender import (
     TAVILY_API_KEY,
 )
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 1 )  Initialise session-state placeholders (persist across reruns)
-# ──────────────────────────────────────────────────────────────────────────────
-for key, default in {
+# --- Initialize session state ---
+for key, value in {
     "routes": [],
     "coords": None,
     "weather": "",
@@ -25,19 +23,17 @@ for key, default in {
     "chat_history": [],
 }.items():
     if key not in st.session_state:
-        st.session_state[key] = default
+        st.session_state[key] = value
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 2 )  Main GUI
-# ──────────────────────────────────────────────────────────────────────────────
+# --- Main GUI ---
 def main() -> None:
     st.set_page_config(page_title="Running Route Recommender", layout="wide")
     st.title("🏃 Running Route Recommender")
 
-    # — Sidebar inputs —
+    # --- Sidebar inputs ---
     with st.sidebar:
         st.header("Your Preferences")
-        location = st.text_input("Enter your city or area", "Paris")
+        location = st.text_input("Enter your city or area", "Paris, France", help="Use format: City, Country (e.g., Paris, France)")
         distance_km = st.number_input("Preferred distance (km)", min_value=0.1, value=5.0)
         pace = st.number_input("Your pace (min/km)", min_value=1.0, value=6.0)
         show_weather = st.checkbox("Check weather?", value=True)
@@ -46,6 +42,9 @@ def main() -> None:
         if not location.strip():
             st.error("Please enter a valid location.")
             st.stop()
+        if not re.match(r"^[a-zA-Z\s,.-]+$", location.strip()):
+            st.error("Location should contain letters, spaces, commas, periods, or hyphens only (e.g., 'Paris, France').")
+            st.stop()
         if distance_km <= 0:
             st.error("Distance must be greater than 0 km.")
             st.stop()
@@ -53,28 +52,28 @@ def main() -> None:
             st.error("Pace must be greater than 0 min/km.")
             st.stop()
 
-    # — Run search only when button pressed —
+    # --- Run search only when button pressed ---
     if st.button("Find Running Routes"):
-        # ① Fetch and cache routes
+        # Fetch and cache routes
         st.session_state.routes = search_running_routes(location, distance_km)
 
-        # ② Fetch and cache coordinates
+        # Fetch and cache coordinates
         st.session_state.coords = get_coordinates(location)
 
-        # ③ Fetch route geometry
+        # Fetch route geometry
         if st.session_state.coords and st.session_state.coords != (None, None):
             st.session_state.route_geometry = get_running_route_geometry(st.session_state.coords, distance_km)
         else:
             st.session_state.route_geometry = None
 
-        # ④ Optionally fetch weather
+        # Optionally fetch weather
         if show_weather and st.session_state.coords and st.session_state.coords != (None, None):
             lat, lon = st.session_state.coords
             st.session_state.weather = get_weather_open_meteo(lat, lon)
         else:
             st.session_state.weather = ""
 
-    # ───────────────────────── Display cached results ─────────────────────────
+    # --- Display cached results ---
     st.subheader(f"📍 Running Routes in {location}")
     if st.session_state.routes:
         for i, r in enumerate(st.session_state.routes, start=1):
@@ -99,7 +98,7 @@ def main() -> None:
 
     # Display favorite routes
     if st.session_state.favorites:
-        st.subheader("⭐ Favorite Routes")
+        st.subheader("🌟 Favorite Routes")
         for r in st.session_state.favorites:
             title, url = r.rsplit(" - ", 1) if " - " in r else (r, "#")
             st.markdown(f"- [{title}]({url})")
@@ -107,14 +106,7 @@ def main() -> None:
     run_time = estimate_run_time(distance_km, pace)
     st.info(f"⏱️ Estimated run time for {distance_km} km: {run_time}")
 
-    # — Pace vs. Time Chart —
-    st.subheader("⏱️ Pace vs. Time")
-    paces = [4.0, 5.0, 6.0, 7.0, 8.0]  # min/km
-    times = [estimate_run_time(distance_km, p).split(" ")[0] for p in paces]  # Extract minutes
-    chart_data = pd.DataFrame({"Pace (min/km)": [f"{p}" for p in paces], "Run Time (minutes)": [int(t) for t in times]})
-    st.bar_chart(chart_data.set_index("Pace (min/km)"))
-
-    # — Map —
+    # --- Map ---
     if st.session_state.coords and st.session_state.coords != (None, None):
         lat, lon = st.session_state.coords
         m = folium.Map(location=[lat, lon], zoom_start=13)
@@ -124,16 +116,16 @@ def main() -> None:
         st.subheader("🗺️ Route Area Map")
         st_folium(m, width=700)
     else:
-        st.warning("Map unavailable: Could not fetch coordinates for the location.")
+        st.error(f"Map unavailable: Could not fetch coordinates for '{location}'. Please check your location input (e.g., 'Paris, France') and ensure a valid User-Agent is set in running_route_recommender.py.")
 
-    # — Weather —
+    # --- Weather ---
     if show_weather and st.session_state.weather:
-        st.subheader("☁️ Weather Info")
+        st.subheader("🌤️ Weather Info")
         st.text(st.session_state.weather)
 
-    # — Chatbot for Tips —
+    # --- Chatbot ---
     st.subheader("💬 Chat with Gemini for Running Tips")
-    st.write("Ask for tips on running, goal chasing, or nutrition (e.g., 'How can I improve my running form?' or 'What should I eat before a run?').")
+    st.write("Ask for tips on running, nutrition, or goal chasing (e.g., 'How can I improve my running form?' or 'What should I eat before a run?').")
     chat_container = st.container()
     with chat_container:
         for message in st.session_state.chat_history:
