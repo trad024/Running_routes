@@ -114,7 +114,7 @@ def main() -> None:
         st.text(st.session_state.weather)
 
     #Chatbot
-    st.subheader("💬 Chat with Gemini for Running Tips")
+    st.subheader("💬 Chat for Running Tips")
     st.write("Ask for tips on running, nutrition, or goal chasing (e.g., 'How can I improve my running form?' or 'What should I eat before a run?').")
     chat_container = st.container()
     with chat_container:
