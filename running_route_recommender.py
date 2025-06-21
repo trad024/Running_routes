@@ -6,14 +6,12 @@ import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# ---- 🔑 API key loader -----------------------------------------------
+#API key loader
 try:
-    # Works when imported from a Streamlit app
     TAVILY_API_KEY = st.secrets["TAVILY_API_KEY"]
     ORS_API_KEY = st.secrets["ORS_API_KEY"]
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 except Exception:
-    # Fallback for plain-Python runs (pytest, notebook, etc.)
     TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
     ORS_API_KEY = os.getenv("ORS_API_KEY")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -34,11 +32,9 @@ if not GEMINI_API_KEY:
         "Add GEMINI_API_KEY to .streamlit/secrets.toml or an env variable."
     )
 
-# Configure Gemini API
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ---- Functions -------------------------------------------------------
-
+#Functions
 @st.cache_data
 def search_running_routes(location: str, distance_km: float):
     """Return up to 5 route titles + URLs from Tavily."""
@@ -69,8 +65,7 @@ def get_running_route_geometry(start_coords: tuple, distance_km: float):
     if not start_coords or start_coords == (None, None):
         return None
     lat, lon = start_coords
-    # Create a simple out-and-back route by offsetting coordinates
-    offset = (distance_km / 111) / 2  # Approx km to degrees (1 deg ~ 111 km)
+    offset = (distance_km / 111) / 2  
     end_coords = [lat + offset, lon + offset]
     url = "https://api.openrouteservice.org/v2/directions/foot-running/geojson"
     headers = {
@@ -108,7 +103,6 @@ def get_coordinates(location):
     headers = {
         "User-Agent": "RunningRouteApp/1.0 (moataz.bentrad@etudiant-fst.utm.tn)"  
     }
-    # Set up retry strategy
     session = requests.Session()
     retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
     session.mount("https://", HTTPAdapter(max_retries=retries))

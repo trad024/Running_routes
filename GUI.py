@@ -13,7 +13,6 @@ from running_route_recommender import (
     TAVILY_API_KEY,
 )
 
-# --- Initialize session state ---
 for key, value in {
     "routes": [],
     "coords": None,
@@ -24,21 +23,15 @@ for key, value in {
 }.items():
     if key not in st.session_state:
         st.session_state[key] = value
-
-# --- Main GUI ---
 def main() -> None:
     st.set_page_config(page_title="Running Route Recommender", layout="wide")
     st.title("🏃 Running Route Recommender")
-
-    # --- Sidebar inputs ---
     with st.sidebar:
         st.header("Your Preferences")
         location = st.text_input("Enter your city or area", "Paris, France", help="Use format: City, Country (e.g., Paris, France)")
         distance_km = st.number_input("Preferred distance (km)", min_value=0.1, value=5.0)
         pace = st.number_input("Your pace (min/km)", min_value=1.0, value=6.0)
         show_weather = st.checkbox("Check weather?", value=True)
-
-        # Input validation
         if not location.strip():
             st.error("Please enter a valid location.")
             st.stop()
@@ -52,7 +45,6 @@ def main() -> None:
             st.error("Pace must be greater than 0 min/km.")
             st.stop()
 
-    # --- Run search only when button pressed ---
     if st.button("Find Running Routes"):
         # Fetch and cache routes
         st.session_state.routes = search_running_routes(location, distance_km)
@@ -73,7 +65,6 @@ def main() -> None:
         else:
             st.session_state.weather = ""
 
-    # --- Display cached results ---
     st.subheader(f"📍 Running Routes in {location}")
     if st.session_state.routes:
         for i, r in enumerate(st.session_state.routes, start=1):
@@ -86,7 +77,6 @@ def main() -> None:
     else:
         st.info("No routes yet – click **Find Running Routes**")
 
-    # Export routes as CSV
     if st.session_state.routes:
         csv = "\n".join([f"{i+1},{r}" for i, r in enumerate(st.session_state.routes)])
         st.download_button(
@@ -106,7 +96,7 @@ def main() -> None:
     run_time = estimate_run_time(distance_km, pace)
     st.info(f"⏱️ Estimated run time for {distance_km} km: {run_time}")
 
-    # --- Map ---
+    #Map
     if st.session_state.coords and st.session_state.coords != (None, None):
         lat, lon = st.session_state.coords
         m = folium.Map(location=[lat, lon], zoom_start=13)
@@ -118,12 +108,12 @@ def main() -> None:
     else:
         st.error(f"Map unavailable: Could not fetch coordinates for '{location}'. Please check your location input (e.g., 'Paris, France') and ensure a valid User-Agent is set in running_route_recommender.py.")
 
-    # --- Weather ---
+    #Weather
     if show_weather and st.session_state.weather:
         st.subheader("🌤️ Weather Info")
         st.text(st.session_state.weather)
 
-    # --- Chatbot ---
+    #Chatbot
     st.subheader("💬 Chat with Gemini for Running Tips")
     st.write("Ask for tips on running, nutrition, or goal chasing (e.g., 'How can I improve my running form?' or 'What should I eat before a run?').")
     chat_container = st.container()
@@ -133,13 +123,10 @@ def main() -> None:
                 st.markdown(message["content"])
 
     if prompt := st.chat_input("Type your question here..."):
-        # Display user message
         with chat_container:
             with st.chat_message("user"):
                 st.markdown(prompt)
         st.session_state.chat_history.append({"role": "user", "content": prompt})
-
-        # Fetch and display Gemini response
         response = get_gemini_tips(prompt)
         with chat_container:
             with st.chat_message("assistant"):
