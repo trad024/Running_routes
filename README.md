@@ -11,22 +11,13 @@ A Streamlit web app that helps runners find the best running routes based on loc
 - **CSV Export**: Download route details as a CSV file.
 - **Gemini Chatbot**: Ask for running, nutrition, or goal-chasing tips using Google’s Gemini API.
 
-## Requirements
-- Python 3.8+
-- API keys for:
+## API keys for:
   - [Tavily](https://tavily.com) (route search)
   - [OpenRouteService](https://openrouteservice.org) (route geometry)
   - [Google AI Studio](https://aistudio.google.com) (Gemini chatbot)
  
-  ## Setup Instructions
-1. **Clone or Download the Project**:
-   - Place the project files in a directory (e.g., `C:\vs_code\running_project`).
-2. **Install Dependencies**:
-   - Open a terminal in the project directory and run:
-     ```bash
-     pip install streamlit folium streamlit-folium requests google-generativeai
-     ```
-3. **Configure API Keys**:
+ 
+**Configure API Keys**:
    - Create a `.streamlit` folder in the project directory.
    - Create a `secrets.toml` file in `.streamlit` with your API keys:
      ```toml
@@ -35,7 +26,7 @@ A Streamlit web app that helps runners find the best running routes based on loc
      GEMINI_API_KEY = "your_gemini_key"
      ```
    - Obtain keys from Tavily, OpenRouteService, and Google AI Studio.
-4. **Update User-Agent**:
+**Update User-Agent**:
    - Open `running_route_recommender.py` and find the `get_coordinates` function.
    - Replace the User-Agent placeholder with your real email:
      ```python
